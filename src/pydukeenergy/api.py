@@ -9,14 +9,14 @@ import requests
 from pydukeenergy.meter import Meter
 
 BASE_URL = "https://www.duke-energy.com/"
-LOGIN_URL = BASE_URL + "form/Login/GetAccountValidationMessage"
+LOGIN_URL = BASE_URL + "facade/api/Authentication/SignIn"
 USAGE_ANALYSIS_URL = BASE_URL + "api/UsageAnalysis/"
 BILLING_INFORMATION_URL = USAGE_ANALYSIS_URL + "GetBillingInformation"
 METER_ACTIVE_URL = BASE_URL + "my-account/usage-analysis"
 USAGE_CHART_URL = USAGE_ANALYSIS_URL + "GetUsageChartData"
 
 USER_AGENT = {"User-Agent": "python/{}.{} pyduke-energy/0.0.6"}
-LOGIN_HEADERS = {"Content-Type": "application/x-www-form-urlencoded"}
+LOGIN_HEADERS = {"Content-Type": "application/json"}
 USAGE_ANALYSIS_HEADERS = {"Content-Type": "application/json", "Accept": "application/json, text/plain, */*"}
 
 _LOGGER = logging.getLogger(__name__)
@@ -131,14 +131,14 @@ class DukeEnergy(object):
         password.
         """
         _LOGGER.debug("Logging in.")
-        data = {"userId": self.email, "userPassword": self.password, "deviceprofile": "mobile"}
+        data = {"loginIdentity": self.email, "password": self.password}
         headers = LOGIN_HEADERS.copy()
         headers.update(USER_AGENT)
-        response = self.session.post(LOGIN_URL, data=data, headers=headers, timeout=10)
+        response = self.session.post(LOGIN_URL, json=data, headers=headers, timeout=10)
         if response.status_code != 200:
             _LOGGER.error("Failed to log in")
+            _LOGGER.debug("Status code %d", response.status_code)
             return False
-        response = self.session.get(METER_ACTIVE_URL, timeout=10)
         return True
 
     def _logout(self):
