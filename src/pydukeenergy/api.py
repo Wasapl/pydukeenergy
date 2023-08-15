@@ -50,6 +50,8 @@ class DukeEnergy(object):
         self.update_interval = update_interval
         if not self._login():
             raise DukeEnergyException("")
+        if not self.get_account_number():
+            raise DukeEnergyException("")
 
     def get_meters(self):
         self._get_meters()
@@ -217,6 +219,21 @@ class DukeEnergy(object):
                 self.meters.append(Meter(self, meter_type, meter_id, meter_start_date, self.update_interval))
             self._logout()
 
+
+    def get_account_number(self):
+        """
+         TODO: implement search of an account by address or name
+        """
+        found = 0
+        for account in self.GetResiAccountsResponse['Accounts']:
+            if account['Status'].upper() == "ACTIVE":
+                self.account = account['AccountNum']
+                found += 1
+        _LOGGER.debug("Found %s accounts", found)
+        if found > 0:
+            _LOGGER.debug("Account Number %s", self.account)
+            return True
+        return False
 
 class DukeEnergyException(Exception):
     pass
