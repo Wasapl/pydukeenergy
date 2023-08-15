@@ -124,20 +124,36 @@ class DukeEnergy(object):
                 self._logout()
                 return False
 
-    def _login(self):
+    def _post(self, url, payload):
+        if isinstance(payload, dict):
+            response = self.session.post(url, json=payload,
+                                        headers=LOGIN_HEADERS,
+                                        timeout=10,
+                                        allow_redirects=False)
+        elif isinstance(payload, str):
+            response = self.session.post(url, data=payload,
+                                        headers=LOGIN_HEADERS,
+                                        timeout=10,
+                                        allow_redirects=False)
+        else:
+            _LOGGER.error("Unsupported type of payload: %s", type(payload))
+            raise DukeEnergyPostException
+        if response.status_code != 200:
+            _LOGGER.debug("Status code %d", response.status_code)
+            raise DukeEnergyPostException
+        _LOGGER.debug("Response text %s", response.text)
+        return response
+
+    def _login(self) -> bool:
         """
         Authenticate. This creates a cookie on the session which is used to authenticate with
         the other calls. Unfortunately the service always returns 200 even if you have a wrong
         password.
         """
         _LOGGER.debug("Logging in.")
-        data = {"loginIdentity": self.email, "password": self.password}
-        headers = LOGIN_HEADERS.copy()
-        headers.update(USER_AGENT)
-        response = self.session.post(LOGIN_URL, json=data, headers=headers, timeout=10)
-        if response.status_code != 200:
-            _LOGGER.error("Failed to log in")
-            _LOGGER.debug("Status code %d", response.status_code)
+        response = self._post(LOGIN_URL, {"loginIdentity": self.email, "password": self.password})
+        if response.json()['Status'] != "Success":
+            _LOGGER.error("Returned Status is not Success.")
             return False
         return True
 
@@ -167,5 +183,8 @@ class DukeEnergy(object):
 
 
 class DukeEnergyException(Exception):
+    pass
+
+class DukeEnergyPostException(Exception):
     pass
 
