@@ -7,6 +7,9 @@ from bs4 import BeautifulSoup
 import requests
 
 from pydukeenergy.meter import Meter
+from pprint import pformat
+from typing import Optional
+
 
 BASE_URL = "https://www.duke-energy.com/"
 LOGIN_URL = BASE_URL + "facade/api/Authentication/SignIn"
@@ -124,7 +127,7 @@ class DukeEnergy(object):
                 self._logout()
                 return False
 
-    def _post(self, url, payload):
+    def _post(self, url, payload) -> requests.models.Response:
         if isinstance(payload, dict):
             response = self.session.post(url, json=payload,
                                         headers=LOGIN_HEADERS,
@@ -144,17 +147,50 @@ class DukeEnergy(object):
         _LOGGER.debug("Response text %s", response.text)
         return response
 
+    def _post_and_check_json_status(self, url, payload) -> Optional[dict]:
+        response = self._post(url, payload)
+        if response.json():
+            json = response.json()
+            if 'Status' in json.keys():
+                if json['Status'] == "Success":
+                    return response.json()
+                else:
+                    _LOGGER.debug("Returned Status is '%s'", json['Status'])
+                    if 'MessageText' in json.keys():
+                        _LOGGER.debug("MessageText = '%s'",
+                                      json['MessageText'])
+            else:
+                _LOGGER.debug("Returned JSON doesn't have 'Status' key.\n %s",
+                              pformat(json))
+        else:
+            # trim response text to 400 chars
+            _LOGGER.debug("Response is not JSON:\n%s",response.text[:400])
+        return None
+
     def _login(self) -> bool:
         """
         Authenticate. This creates a cookie on the session which is used to authenticate with
         the other calls. Unfortunately the service always returns 200 even if you have a wrong
         password.
         """
-        _LOGGER.debug("Logging in.")
-        response = self._post(LOGIN_URL, {"loginIdentity": self.email, "password": self.password})
-        if response.json()['Status'] != "Success":
-            _LOGGER.error("Returned Status is not Success.")
+        _LOGGER.debug("Logging in...")
+        if not self._post_and_check_json_status(LOGIN_URL,
+                    {"loginIdentity": self.email, "password": self.password}):
+            _LOGGER.error("Login failed")
             return False
+
+        # getting Accounts info.
+        json = self._post_and_check_json_status(
+            BASE_URL+"facade/api/AccountSelector/GetResiAccounts",
+            {"email":""})
+        if json:
+            self.GetResiAccountsResponse = json
+            if 'CdpId' in json.keys():
+                self.cdp = json['CdpId']
+            else:
+                self.cdp = None
+                _LOGGER.debug("Can't find 'CdpId' in 'GetResiAccounts' response:\n",
+                              pformat(json))
         return True
 
     def _logout(self):
