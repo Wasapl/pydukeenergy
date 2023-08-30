@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 import requests
-
 from pydukeenergy.meter import Meter
 from pprint import pformat
 from typing import Optional
@@ -146,7 +145,6 @@ class DukeEnergy(object):
         if response.status_code != 200:
             _LOGGER.debug("Status code %d", response.status_code)
             raise DukeEnergyPostException
-        _LOGGER.debug("Response text %s", response.text)
         return response
 
     def _post_and_check_json_status(self, url, payload) -> Optional[dict]:
@@ -234,6 +232,24 @@ class DukeEnergy(object):
             _LOGGER.debug("Account Number %s", self.account)
             return True
         return False
+
+
+    def get_usage_xml(self):
+        if self._login:
+            GET_USAGE_XML_URL = BASE_URL + "form/PlanRate/GetEnergyUsage"
+            GetUsagePayload={"request":"{\"SrcAcctId\":\"" + self.account + "\",\"SrcAcctId2\":\"\",\"SrcSysCd\":\"ISU\",\"ServiceType\":\"ELECTRIC\"}"}
+            for retrynum in range(3):
+                try:
+                    response = self.session.post(GET_USAGE_XML_URL, json=GetUsagePayload)
+                except requests.exceptions.TooManyRedirects as e:
+                    _LOGGER.debug("got redirection %s, %s", e.response.url, e.request)
+                    continue
+                if '<?xml ' in response.text:
+                    _LOGGER.debug("got XML!")
+                    break
+                else:
+                    _LOGGER.debug("failed to get xml")
+            return response.text
 
 class DukeEnergyException(Exception):
     pass
