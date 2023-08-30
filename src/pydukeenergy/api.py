@@ -37,15 +37,17 @@ class DukeEnergy(object):
             password (str): Duke Energy account password.
             update_interval (int): How often an update should occur. (Min=10)
         """
-        global USER_AGENT
+        global USER_AGENT, LOGIN_HEADERS
         version_info = sys.version_info
         major = version_info.major
         minor = version_info.minor
         USER_AGENT["User-Agent"] = USER_AGENT["User-Agent"].format(major, minor)
+        LOGIN_HEADERS.update(USER_AGENT)
         self.email = email
         self.password = password
         self.meters = []
         self.session = requests.Session()
+        self.session.headers.update(LOGIN_HEADERS)
         self.update_interval = update_interval
         if not self._login():
             raise DukeEnergyException("")
@@ -111,7 +113,8 @@ class DukeEnergy(object):
             _LOGGER.debug(str(response.content))
             try:
                 if response.status_code != 200:
-                    _LOGGER.error("Usage data request failed: " + response.status_code)
+                    _LOGGER.error("Usage data request failed: " +
+                                  response.status_code)
                     self._logout()
                     return False
                 if response.json()["Status"] == "ERROR":
@@ -131,14 +134,14 @@ class DukeEnergy(object):
     def _post(self, url, payload) -> requests.models.Response:
         if isinstance(payload, dict):
             response = self.session.post(url, json=payload,
-                                        headers=LOGIN_HEADERS,
-                                        timeout=10,
-                                        allow_redirects=False)
+                                         headers=LOGIN_HEADERS,
+                                         timeout=10,
+                                         allow_redirects=False)
         elif isinstance(payload, str):
             response = self.session.post(url, data=payload,
-                                        headers=LOGIN_HEADERS,
-                                        timeout=10,
-                                        allow_redirects=False)
+                                         headers=LOGIN_HEADERS,
+                                         timeout=10,
+                                         allow_redirects=False)
         else:
             _LOGGER.error("Unsupported type of payload: %s", type(payload))
             raise DukeEnergyPostException
@@ -237,12 +240,14 @@ class DukeEnergy(object):
     def get_usage_xml(self):
         if self._login:
             GET_USAGE_XML_URL = BASE_URL + "form/PlanRate/GetEnergyUsage"
-            GetUsagePayload={"request":"{\"SrcAcctId\":\"" + self.account + "\",\"SrcAcctId2\":\"\",\"SrcSysCd\":\"ISU\",\"ServiceType\":\"ELECTRIC\"}"}
+            GetUsagePayload = {"request":"{\"SrcAcctId\":\"" + self.account + "\",\"SrcAcctId2\":\"\",\"SrcSysCd\":\"ISU\",\"ServiceType\":\"ELECTRIC\"}"}
             for retrynum in range(3):
                 try:
-                    response = self.session.post(GET_USAGE_XML_URL, json=GetUsagePayload)
+                    response = self.session.post(GET_USAGE_XML_URL,
+                                                 json=GetUsagePayload)
                 except requests.exceptions.TooManyRedirects as e:
-                    _LOGGER.debug("got redirection %s, %s", e.response.url, e.request)
+                    _LOGGER.debug("got redirection %s, %s", e.response.url,
+                                  e.request)
                     continue
                 if '<?xml ' in response.text:
                     _LOGGER.debug("got XML!")
